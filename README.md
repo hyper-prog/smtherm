@@ -1,4 +1,4 @@
-![SMTherm logo](https://raw.githubusercontent.com/hyper-prog/smtherm/master/image/smtherm_s.png)
+![SMTherm logo](https://raw.githubusercontent.com/hyper-prog/smtherm/master/images/smtherm_s.png)
 
 SMTherm - Smart Manageable Thermostat daemon
 ============================================
@@ -8,6 +8,8 @@ It designed to run on Raspberri Pi and can even take into account the data of se
 and make complex decisions about starting or stopping the heating.
 The program communicates via a TCP interface and, in addition to controlling the heating,
 stores the temperature data of the last 3 days in a ring buffer.
+
+The SMTherm only have TCP interface, the GlowDash: https://github.com/hyper-prog/glowdash can controls it. 
 
 Compile / Install
 -----------------
@@ -24,4 +26,4 @@ Author
 
 ------
 
-[![paypal](https://raw.githubusercontent.com/hyper-prog/glowdash/master/docs/images/tipjar.png)](https://www.paypal.com/donate/?business=EM2E9A6BZBK64&no_recurring=0&currency_code=USD) 
+[![paypal](https://raw.githubusercontent.com/hyper-prog/smtherm/master/images/tipjar.png)](https://www.paypal.com/donate/?business=EM2E9A6BZBK64&no_recurring=0&currency_code=USD) 
