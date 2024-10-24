@@ -1,4 +1,4 @@
-![SMTherm logo](https://raw.githubusercontent.com/hyper-prog/smtherm/master/images/smtherm_s.png)
+![SMTherm logo](https://raw.githubusercontent.com/hyper-prog/smtherm/master/images/smtherm_xxs.png)
 
 SMTherm - Smart Manageable Thermostat daemon
 ============================================
