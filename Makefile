@@ -12,10 +12,10 @@ all: smtherm
 clean:
 	rm *.o && rm smtherm
 
-smtherm: smtherm.o dht22.o tools.o therm.o conf.o comm.o history.o
+smtherm: smtherm.o dht22.o tools.o therm.o conf.o comm.o history.o drnd.o
 	$(COMPILER) $(+) -o $(@) $(L_SW_FLAGS)
 
-smtherm.o: smtherm.c tools.h conf.h therm.h dht22.h smtherm.h comm.h history.h
+smtherm.o: smtherm.c tools.h conf.h therm.h dht22.h drnd.h smtherm.h comm.h history.h
 	$(COMPILER) -c $(<) -o $(@) $(CFLAGS)
 
 therm.o: therm.c tools.h conf.h dht22.h smtherm.h comm.h therm.h
@@ -34,6 +34,9 @@ conf.o: conf.c smtherm.h therm.h tools.h
 	$(COMPILER) -c $(<) -o $(@) $(CFLAGS)
 
 dht22.o: dht22.c dht22.h
+	$(COMPILER) -c $(<) -o $(@) $(CFLAGS)
+
+drnd.o: drnd.c drnd.h
 	$(COMPILER) -c $(<) -o $(@) $(CFLAGS)
 
 install:

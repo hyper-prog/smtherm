@@ -7,6 +7,8 @@
 #ifndef SMTHERM_SMTHERM_HEADER
 #define SMTHERM_SMTHERM_HEADER
 
+#include <time.h>
+
 #define NAME "smtherm"
 #define LONGNAME "Simple managed thermostat daemon"
 
@@ -14,6 +16,7 @@
 
 #define SENSOR_TYPE_UNKNOWN    0
 #define SENSOR_TYPE_DHT22      1
+#define SENSOR_TYPE_RND        2
 
 #define MAX_SENSOR_COUNT       9
 #define SENSOR_NAME_MAXLENGTH  32
@@ -44,6 +47,13 @@ struct SensorData
     void   *lowlevel_data;
 };
 
+struct ReadValues
+{
+    int   valid;
+    float temp;
+    float hum;
+};
+
 struct TempHum
 {
     float  temp;
@@ -55,13 +65,16 @@ struct SMTherm_Settings
     int   sensor_count;
     int   loglevel;
     int   nodaemon;
-    int   tcpport;
+    char  ctrl_listen_host[64];
+    int   ctrl_listen_port;
     int   sensor_poll_time;
     char  logfile[128];
     char  pidfile[128];
     char  statefile[128];
+    char  emergstatefile[128];
     char  sse_host[128];
     int   sse_port;
+    float hystersis;
 
     char  heater_switch_mode[16]; // "gpio","shelly"
     int   heater_switch_gpio;

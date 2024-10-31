@@ -41,9 +41,14 @@ void init_thermostat(void)
     therm.heating_on = 0;
     therm.last_target_temp = 20.0;
     therm.last_reference_temp = 20.0;
-    therm.hist = 0.25;
+    therm.hyst = 0.25;
+    therm.req_act = THERM_REQACT_NONE;
+    therm.req_wait = 0;
+    therm.req_notify = 0;
     h_strlcpy(therm.target_sensor,"",128);
 
+    therm.emergencysaved_thermostat_on = -1;
+    therm.emergencysaved_target_temp = -99;
 
     if(pthread_mutex_init(&thermostat_lock, NULL) != 0) 
     {
@@ -51,7 +56,7 @@ void init_thermostat(void)
     }
 }
 
-void thermostat_read_saved_state(const char *statefile)
+int thermostat_read_saved_state(const char *statefile,int delete_file)
 {
     FILE *sfp;
     if((sfp = fopen(statefile,"r")) != NULL)
@@ -111,26 +116,56 @@ void thermostat_read_saved_state(const char *statefile)
         }
         fclose(sfp);
 
-        if(unlink(statefile) != 0)
-            toLog(1,"Warning: Cannot delete state file!\n");
-
+        if(delete_file)
+        {
+            if(unlink(statefile) != 0)
+                toLog(1,"Warning: Cannot delete state file!\n");
+        }
+        return 1;
     }
+    return 0;
 }
 
-void free_thermostat(const char *statefile)
+void thermostat_emergency_write_state(const char *statefile)
 {
+    int need_save = 0;
+    pthread_mutex_lock(&thermostat_lock);
+    if(therm.emergencysaved_thermostat_on != therm.thermostat_on || therm.emergencysaved_target_temp != therm.target_temp)
+    {
+        need_save = 1;
+        therm.emergencysaved_thermostat_on = therm.thermostat_on;
+        therm.emergencysaved_target_temp = therm.target_temp;
+    }
+    pthread_mutex_unlock(&thermostat_lock);
+
+    if(need_save)
+        thermostat_write_state(statefile,0);
+}
+
+void thermostat_write_state(const char *statefile,int clean_shutdown)
+{
+    pthread_mutex_lock(&thermostat_lock);
     FILE *sfp;
     if((sfp = fopen(statefile,"w")) != NULL)
     {
         fprintf(sfp,"tw:%s\n",therm.thermostat_on ? "on" : "off");
         fprintf(sfp,"tt:%.1f\n",therm.target_temp);
-        fprintf(sfp,"rt:%.1f\n",therm.reference_temp);
-        fprintf(sfp,"ltt:%.1f\n",therm.last_target_temp);
-        fprintf(sfp,"lrt:%.1f\n",therm.last_reference_temp);
-        fprintf(sfp,"heat:%s\n",therm.heating_on ? "on" : "off");
+        if(clean_shutdown)
+        {
+            fprintf(sfp,"rt:%.1f\n",therm.reference_temp);
+            fprintf(sfp,"ltt:%.1f\n",therm.last_target_temp);
+            fprintf(sfp,"lrt:%.1f\n",therm.last_reference_temp);
+            fprintf(sfp,"heat:%s\n",therm.heating_on ? "on" : "off");
+        }
+        fprintf(sfp,"coff:%s\n",clean_shutdown ? "t" : "f");
         fclose(sfp);
     }
+    pthread_mutex_unlock(&thermostat_lock);
+}
 
+void free_thermostat(const char *statefile)
+{
+    thermostat_write_state(statefile,1);
     pthread_mutex_destroy(&thermostat_lock);
 }
 
@@ -217,9 +252,8 @@ float calc_reference_temp(void)
     return -100.0;
 }
 
-int do_thermostat_in(void)
+void do_thermostat_in(void)
 {
-    int is_sse_sent = 0;
     float rt = calc_reference_temp();
     therm.last_reference_temp = therm.reference_temp;
     therm.reference_temp = rt;
@@ -229,7 +263,7 @@ int do_thermostat_in(void)
         int last_heating_on = therm.heating_on;
         if(therm.heating_on)
         {
-            if(therm.reference_temp < therm.target_temp + therm.hist)
+            if(therm.reference_temp < therm.target_temp + therm.hyst)
             {
                 therm.heating_on = 1;
             }
@@ -240,7 +274,7 @@ int do_thermostat_in(void)
         }
         else
         {
-            if(therm.reference_temp <= therm.target_temp - therm.hist)
+            if(therm.reference_temp <= therm.target_temp - therm.hyst)
             {
                 therm.heating_on = 1;
             }
@@ -252,9 +286,12 @@ int do_thermostat_in(void)
 
         if(last_heating_on != therm.heating_on)
         {
-            switch_heater(therm.heating_on);
-            send_sse_message("thermostat=ThermostatDataChanged");
-            is_sse_sent = 1;
+            if(therm.heating_on)
+                therm.req_act = THERM_REQACT_SWON;
+            else
+                therm.req_act = THERM_REQACT_SWOFF;
+            therm.req_wait = 0;
+            therm.req_notify = 1;
         }
     }
     else //thermostat off
@@ -262,9 +299,10 @@ int do_thermostat_in(void)
          if(therm.heating_on)
          {
              therm.heating_on = 0;
-             switch_heater(0);
-             send_sse_message("thermostat=ThermostatDataChanged");
-             is_sse_sent = 1;
+
+             therm.req_act = THERM_REQACT_SWOFF;
+             therm.req_wait = 0;
+             therm.req_notify = 1;
          }
     }
 
@@ -275,10 +313,8 @@ int do_thermostat_in(void)
 
     if(therm.last_reference_temp != therm.reference_temp)
     {
-        send_sse_message("thermostat=ThermostatDataChanged");
-        is_sse_sent = 1;
+        therm.req_notify = 1;
     }
-    return is_sse_sent;
 }
 
 void thermostat_ext_lock()
@@ -291,30 +327,86 @@ void thermostat_ext_unlock()
     pthread_mutex_unlock(&thermostat_lock);
 }
 
-int do_thermostat(void)
+void do_thermostat(void)
 {
-    int is_sse_sent;
     pthread_mutex_lock(&thermostat_lock);
-    is_sse_sent = do_thermostat_in();
+    do_thermostat_in();
     pthread_mutex_unlock(&thermostat_lock);
-    return is_sse_sent;
+}
+
+int is_notify_required(void)
+{
+    int nr;
+    pthread_mutex_lock(&thermostat_lock);
+    nr = therm.req_notify;
+    pthread_mutex_unlock(&thermostat_lock);
+    return nr;
+}
+
+void clear_notify_required(void)
+{
+    pthread_mutex_lock(&thermostat_lock);
+    therm.req_notify = 0;
+    pthread_mutex_unlock(&thermostat_lock);
+}
+
+int is_req_heater_action(void)
+{
+    int ra = THERM_REQACT_NONE;
+    pthread_mutex_lock(&thermostat_lock);
+    if(therm.req_act != THERM_REQACT_NONE)
+    {
+        if(therm.req_wait >= THERM_REQWAIT_THRES)
+        {
+            ra = therm.req_act;
+        }
+        else
+        {
+            therm.req_wait++;
+        }
+    }
+    pthread_mutex_unlock(&thermostat_lock);
+    return ra;
+}
+
+void clear_req_heater_action(void)
+{
+    pthread_mutex_lock(&thermostat_lock);
+    therm.req_act = THERM_REQACT_NONE;
+    therm.req_wait = 0;
+    pthread_mutex_unlock(&thermostat_lock);
 }
 
 void set_target_temp(float tt)
 {
+    pthread_mutex_lock(&thermostat_lock);
     therm.last_target_temp = therm.target_temp;
     therm.target_temp = tt;
+    pthread_mutex_unlock(&thermostat_lock);
 
     if(therm.last_target_temp != therm.target_temp)
-        if(!do_thermostat())
-            send_sse_message("thermostat=ThermostatDataChanged");
+    {
+        do_thermostat();
+        do_sse_notify_if_required();
+    }
 }
 
 void set_thermostat_on(int on)
 {
+    pthread_mutex_lock(&thermostat_lock);
     therm.thermostat_on = on;
-    if(!do_thermostat())
+    pthread_mutex_unlock(&thermostat_lock);
+    do_thermostat();
+    do_sse_notify_if_required();
+}
+
+void do_sse_notify_if_required(void)
+{
+    if(is_notify_required())
+    {
+        clear_notify_required();
         send_sse_message("thermostat=ThermostatDataChanged");
+    }
 }
 
 void set_target_temp_lowlevel(float tt)
@@ -340,6 +432,11 @@ float get_target_temp_lowlevel(void)
 const char* get_target_sensor_lowlevel(void)
 {
     return therm.target_sensor;
+}
+
+void set_hystersis_lowlevel(float h)
+{
+    therm.hyst = h;
 }
 
 int get_thermostat_working()

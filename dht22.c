@@ -5,13 +5,15 @@
 *  Peter Deak (C) hyper80@gmail.com , GPL v2
 **************************************************************************************/
 
-#include "dht22.h"
-#include <time.h>
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
 #include <wiringPi.h>
+
+#include "dht22.h"
+#include "smtherm.h"
+#include "tools.h"
 
 #define MAX_TIMINGS 85                  // Takes 84 state changes to transmit data
 
@@ -94,7 +96,7 @@ void dht22_startpuls(int wpi_pin)
     pinMode(wpi_pin, INPUT);
 }
 
-int dht22_sensor_init(struct SensorDevice* sd,int rpi_gpio_pin)
+int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin)
 {
     int i;
 
@@ -125,22 +127,22 @@ int dht22_sensor_init(struct SensorDevice* sd,int rpi_gpio_pin)
     return 1;
 }
 
-void dht22_sensor_set_autoretry(struct SensorDevice* sd,int max_try)
+void dht22_sensor_set_autoretry(struct Dht22SensorDevice* sd,int max_try)
 {
     sd->max_try = max_try;
 }
 
-void dht22_sensor_set_autoretry_delay(struct SensorDevice* sd,int ar_delay)
+void dht22_sensor_set_autoretry_delay(struct Dht22SensorDevice* sd,int ar_delay)
 {
     sd->ar_delay = ar_delay;
 }
 
-void dht22_sensor_set_fahrenheit(struct SensorDevice* sd)
+void dht22_sensor_set_fahrenheit(struct Dht22SensorDevice* sd)
 {
     sd->fahrenheit = 1;
 }
 
-struct ReadValues dht22_sensor_read(struct SensorDevice* sd)
+struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
 {
     int try;
     struct ReadValues rv;
@@ -206,7 +208,7 @@ struct ReadValues dht22_sensor_read(struct SensorDevice* sd)
     return rv;
 }
 
-struct ReadValues dht22_sensor_single_read_in(struct SensorDevice* sd)
+struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 {
     struct ReadValues rv;
 
@@ -276,7 +278,7 @@ struct ReadValues dht22_sensor_single_read_in(struct SensorDevice* sd)
     return rv;
 }
 
-struct ReadValues dht22_sensor_single_read(struct SensorDevice* sd)
+struct ReadValues dht22_sensor_single_read(struct Dht22SensorDevice* sd)
 {
     struct ReadValues rv;
     pthread_spin_lock(&sensor_lock);

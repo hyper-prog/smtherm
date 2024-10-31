@@ -24,6 +24,12 @@ struct OneSensorHistory
     unsigned char   *humarray;
 };
 
+struct HeaterActionHistory
+{
+    unsigned long int when;
+    int what;
+};
+
 int history_sensor_count;
 
 int wpos;
@@ -31,6 +37,10 @@ struct OneSensorHistory history[MAX_SENSOR_COUNT];
 unsigned int timetable[HISTORY_MAX_ITEMCOUNT];
 time_t startTime;
 time_t lastHistorySave;
+
+int hsw_wpos;
+struct HeaterActionHistory hsw_history[HEATERSW_HISTORY_MAX_ITEMCOUNT];
+
 pthread_mutex_t hlock;
 
 int init_history_database(void)
@@ -73,6 +83,14 @@ int init_history_database(void)
             ++history_sensor_count;
         }
     }
+
+    hsw_wpos = 0;
+    for(i = 0 ; i < HEATERSW_HISTORY_MAX_ITEMCOUNT ; ++i)
+    {
+        hsw_history[i].when = 0;
+        hsw_history[i].what = 0;
+    }
+
     pthread_mutex_unlock(&hlock);
     toLog(2,"History init done.\n");
     return 0;
@@ -83,16 +101,15 @@ int history_store_sensors(void)
     int i;
 
     toLog(2,"History store...\n");
-    pthread_mutex_lock(&hlock);
     time_t now;
     now = time(NULL);
 
     if(lastHistorySave != 0 && (lastHistorySave + (60 * HISTORY_STORE_PERIOD_MIN)) > now)
     {
-        pthread_mutex_unlock(&hlock);
         return history_sensor_count;
     }
 
+    pthread_mutex_lock(&hlock);
     lastHistorySave = now;
     toLog(2,"Determine store pos...\n");
     if(wpos >= HISTORY_MAX_ITEMCOUNT)
@@ -111,6 +128,20 @@ int history_store_sensors(void)
     toLog(3,"History store done. (wpos:%d)\n",wpos);
     pthread_mutex_unlock(&hlock);
     return history_sensor_count;
+}
+
+void hsw_history_store(int what)
+{
+    time_t now;
+    now = time(NULL);
+
+    pthread_mutex_lock(&hlock);
+    hsw_history[hsw_wpos].when = now;
+    hsw_history[hsw_wpos].what = what;
+    ++hsw_wpos;
+    if(hsw_wpos >= HEATERSW_HISTORY_MAX_ITEMCOUNT)
+        hsw_wpos = 0;
+    pthread_mutex_unlock(&hlock);
 }
 
 void get_history_data(char *buffer,int buffersize,const char *sensorname,int startoffset,int count)
@@ -177,6 +208,40 @@ void get_history_data(char *buffer,int buffersize,const char *sensorname,int sta
             offset += strlen(lb);
         }
     }
+    pthread_mutex_unlock(&hlock);
+}
+
+void get_hsw_history_data(char *buffer,int buffersize)
+{
+    pthread_mutex_lock(&hlock);
+
+    int offset = 0;
+    char lb[64];
+
+    snprintf(lb,64,"{\"hswhist\":[");
+    snprintf(buffer+offset,buffersize-offset,"%s",lb);
+    offset += strlen(lb);
+
+    int r,first = 1;
+    for(r = 0 ; r < HEATERSW_HISTORY_MAX_ITEMCOUNT ; r++)
+    {
+        if(hsw_history[(hsw_wpos + r) % HEATERSW_HISTORY_MAX_ITEMCOUNT].when != 0 &&
+           hsw_history[(hsw_wpos + r) % HEATERSW_HISTORY_MAX_ITEMCOUNT].what != 0 )
+        {
+            snprintf(lb,64,"%s[%lu,%d]",
+                           first ? "" : ",",
+                           hsw_history[(hsw_wpos + r) % HEATERSW_HISTORY_MAX_ITEMCOUNT].when,
+                           hsw_history[(hsw_wpos + r) % HEATERSW_HISTORY_MAX_ITEMCOUNT].what);
+            snprintf(buffer+offset,buffersize-offset,"%s",lb);
+            offset += strlen(lb);
+            first = 0;
+        }
+    }
+
+    snprintf(lb,64,"]}");
+    snprintf(buffer+offset,buffersize-offset,"%s",lb);
+    offset += strlen(lb);
+
     pthread_mutex_unlock(&hlock);
 }
 

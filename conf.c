@@ -40,12 +40,19 @@ void read_config_item(char *item_line,struct SMTherm_Settings *smtc,struct Senso
         return;
     }
 
-    h_strlcpy(confs,"TcpPort=",128);
+    h_strlcpy(confs,"ControlListenAddress=",128);
+    if(strncmp(confs,item_line,strlen(confs)) == 0)
+    {
+        h_strlcpy(smtc->ctrl_listen_host,ltrim(item_line + strlen(confs)),64);
+        return;
+    }
+
+    h_strlcpy(confs,"ControlListenPort=",128);
     if(strncmp(confs,item_line,strlen(confs)) == 0)
     {
         int dec;
         if(sscanf(ltrim(item_line + strlen(confs)),"%d",&dec) == 1)
-            smtc->tcpport = dec;
+            smtc->ctrl_listen_port = dec;
         return;
     }
 
@@ -62,6 +69,15 @@ void read_config_item(char *item_line,struct SMTherm_Settings *smtc,struct Senso
     if(strncmp(confs,item_line,strlen(confs)) == 0)
     {
         h_strlcpy(smtc->sse_host,ltrim(item_line + strlen(confs)),128);
+        return;
+    }
+
+    h_strlcpy(confs,"Hystersis=",128);
+    if(strncmp(confs,item_line,strlen(confs)) == 0)
+    {
+        float flt;
+        if(sscanf(ltrim(item_line + strlen(confs)),"%f",&flt) == 1)
+            set_hystersis_lowlevel(flt);
         return;
     }
 
@@ -108,6 +124,13 @@ void read_config_item(char *item_line,struct SMTherm_Settings *smtc,struct Senso
     if(strncmp(confs,item_line,strlen(confs)) == 0)
     {
         h_strlcpy(smtc->statefile,ltrim(item_line + strlen(confs)),128);
+        return;
+    }
+
+    h_strlcpy(confs,"EmergencyStateFile=",128);
+    if(strncmp(confs,item_line,strlen(confs)) == 0)
+    {
+        h_strlcpy(smtc->emergstatefile,ltrim(item_line + strlen(confs)),128);
         return;
     }
 
@@ -179,6 +202,8 @@ void read_config_item(char *item_line,struct SMTherm_Settings *smtc,struct Senso
             seda[ss].type = SENSOR_TYPE_UNKNOWN;
             if(strcmp(ltrim(item_line + strlen(confs)),"dht22") == 0)
                 seda[ss].type = SENSOR_TYPE_DHT22;
+            if(strcmp(ltrim(item_line + strlen(confs)),"rnd") == 0)
+                seda[ss].type = SENSOR_TYPE_RND;
             return;
         }
 

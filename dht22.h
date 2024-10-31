@@ -10,14 +10,9 @@
 #define SENSOR_SENSE_MAX_DIFFTIME 180
 #define SENSOR_SENSE_MAX_DIFFTEMP 5.0
 
-struct ReadValues
-{
-    int   valid;
-    float temp;
-    float hum;
-};
+struct ReadValues;
 
-struct SensorDevice
+struct Dht22SensorDevice
 {
     int fahrenheit;
     int wpi_pin;
@@ -35,12 +30,12 @@ struct SensorDevice
 void              init_sensors(void);
 void              free_sensors(void);
 
-int               dht22_sensor_init(struct SensorDevice* sd,int rpi_gpio_pin);
-struct ReadValues dht22_sensor_read(struct SensorDevice* sd);
+int               dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin);
+struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd);
 
-void              dht22_sensor_set_autoretry(struct SensorDevice* sd,int max_try);
-void              dht22_sensor_set_autoretry_delay(struct SensorDevice* sd,int ar_delay);
-void              dht22_sensor_set_fahrenheit(struct SensorDevice* sd);
-struct ReadValues dht22_sensor_single_read(struct SensorDevice* sd);
+void              dht22_sensor_set_autoretry(struct Dht22SensorDevice* sd,int max_try);
+void              dht22_sensor_set_autoretry_delay(struct Dht22SensorDevice* sd,int ar_delay);
+void              dht22_sensor_set_fahrenheit(struct Dht22SensorDevice* sd);
+struct ReadValues dht22_sensor_single_read(struct Dht22SensorDevice* sd);
 
 #endif // TDHT22_H

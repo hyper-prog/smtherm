@@ -4,7 +4,6 @@
 *  Peter Deak (C) hyper80@gmail.com , GPL v2
 **************************************************************************************/
 #include <stdio.h>
-#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
@@ -23,6 +22,7 @@
 #include "conf.h"
 #include "therm.h"
 #include "dht22.h"
+#include "drnd.h"
 #include "smtherm.h"
 #include "comm.h"
 #include "history.h"
@@ -36,13 +36,16 @@ void zero_conf(void)
 {
     smt_settings.loglevel = 0;
     smt_settings.nodaemon = 0;
-    smt_settings.tcpport = 5017;
+    smt_settings.ctrl_listen_port = 5017;
     smt_settings.sensor_poll_time = 60;
     smt_settings.sse_port = 0;
+    smt_settings.hystersis = 0.25;
+    h_strlcpy(smt_settings.ctrl_listen_host,"*",64);
     h_strlcpy(smt_settings.sse_host,"127.0.0.1",128);
     h_strlcpy(smt_settings.pidfile,"",128);
     h_strlcpy(smt_settings.logfile,"/var/log/smtherm.log",128);
     h_strlcpy(smt_settings.statefile,"/var/run/smtherm.data",128);
+    h_strlcpy(smt_settings.emergstatefile,"/var/run/smtherm.asd",128);
     h_strlcpy(smt_settings.heater_switch_mode,"none",16);
 
     smt_settings.heater_switch_gpio = 0;
@@ -131,18 +134,35 @@ int get_sensor_statistics(char *buffer,int buffer_length,int index)
         snprintf(buffer,buffer_length,"Error getting statistics of sensor: %s\n",smt_sensors[index].name);
         return 1;
     }
-    struct SensorDevice *sd = (struct SensorDevice *)smt_sensors[index].lowlevel_data;
-    time_t now = time(NULL);
 
-    snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,\"okread\": %lu,\"crcerror\": %lu,\"insense\": %lu}",
-                smt_sensors[index].name,
-                smt_sensors[index].temp,
-                smt_sensors[index].last_read_success ? "yes" : "no",
-                smt_sensors[index].hum,
-                now - sd->last_read_time,
-                sd->okread,
-                sd->checksumerror,
-                sd->falsedataerror);
+    if(smt_sensors[index].type == SENSOR_TYPE_DHT22 && smt_sensors[index].lowlevel_data != NULL)
+    {
+        struct Dht22SensorDevice *sd = (struct Dht22SensorDevice *)smt_sensors[index].lowlevel_data;
+        time_t now = time(NULL);
+
+        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,\"okread\": %lu,\"crcerror\": %lu,\"insense\": %lu}",
+                    smt_sensors[index].name,
+                    smt_sensors[index].temp,
+                    smt_sensors[index].last_read_success ? "yes" : "no",
+                    smt_sensors[index].hum,
+                    now - sd->last_read_time,
+                    sd->okread,
+                    sd->checksumerror,
+                    sd->falsedataerror);
+    }
+    if(smt_sensors[index].type == SENSOR_TYPE_RND && smt_sensors[index].lowlevel_data != NULL)
+    {
+        struct RndSensorDevice *sd = (struct RndSensorDevice *)smt_sensors[index].lowlevel_data;
+        time_t now = time(NULL);
+
+        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,\"okread\": %lu,\"crcerror\": 0,\"insense\": 0}",
+                    smt_sensors[index].name,
+                    smt_sensors[index].temp,
+                    "yes",
+                    smt_sensors[index].hum,
+                    now - sd->last_read_time,
+                    sd->okread);
+    }
     return 0;
 }
 
@@ -222,8 +242,14 @@ void init_sensor_devices(void)
             smt_sensors[i].active = 0;
             if(smt_sensors[i].type == SENSOR_TYPE_DHT22)
             {
-                smt_sensors[i].lowlevel_data = (void *)malloc(sizeof(struct SensorDevice));
-                dht22_sensor_init((struct SensorDevice *)smt_sensors[i].lowlevel_data,smt_sensors[i].gpio_pin);
+                smt_sensors[i].lowlevel_data = (void *)malloc(sizeof(struct Dht22SensorDevice));
+                dht22_sensor_init((struct Dht22SensorDevice *)smt_sensors[i].lowlevel_data,smt_sensors[i].gpio_pin);
+                smt_sensors[i].active = 1;
+            }
+            if(smt_sensors[i].type == SENSOR_TYPE_RND)
+            {
+                smt_sensors[i].lowlevel_data = (void *)malloc(sizeof(struct RndSensorDevice));
+                rnd_sensor_init((struct RndSensorDevice *)smt_sensors[i].lowlevel_data);
                 smt_sensors[i].active = 1;
             }
         }
@@ -234,9 +260,22 @@ void read_single_sensor(int index)
 {
     if(smt_sensors[index].active)
     {
+        int read = 0;
+        struct ReadValues v;
+
         if(smt_sensors[index].type == SENSOR_TYPE_DHT22 && smt_sensors[index].lowlevel_data != NULL)
         {
-            struct ReadValues v = dht22_sensor_read((struct SensorDevice *)smt_sensors[index].lowlevel_data);
+            v = dht22_sensor_read((struct Dht22SensorDevice *)smt_sensors[index].lowlevel_data);
+            read = 1;
+        }
+        if(smt_sensors[index].type == SENSOR_TYPE_RND && smt_sensors[index].lowlevel_data != NULL)
+        {
+            v = rnd_sensor_read((struct RndSensorDevice *)smt_sensors[index].lowlevel_data);
+            read = 1;
+        }
+
+        if(read)
+        {
             if(v.valid)
             {
                 thermostat_ext_lock();
@@ -292,6 +331,7 @@ void print_valid_sensors(void)
     }
 }
 
+int emergency_save_counter = 0;
 void * sensor_reader_thread_fnc(void *arg)
 {
     toLog(1,"Sensor reader thread: init sensors...\n");
@@ -310,10 +350,18 @@ void * sensor_reader_thread_fnc(void *arg)
         if(is_sensor_value_changed())
         {
             do_thermostat();
-            send_sse_message("sensors=SensorDataChanged");
+            do_sse_notify_if_required(); //Thermostat data changed notify
+            send_sse_message("sensors=SensorDataChanged"); //Sensor values changed notify
         }
 
         history_store_sensors();
+
+        ++emergency_save_counter;
+        if(emergency_save_counter > 12)
+        {
+            emergency_save_counter = 0;
+            thermostat_emergency_write_state(smt_settings.emergstatefile);
+        }
 
         sleep(smt_settings.sensor_poll_time);
     }
@@ -333,17 +381,24 @@ void * communication_thread_fnc(void *arg)
         exit(1);
     }
 
-    addr.sin_port = htons(smt_settings.tcpport);
+    addr.sin_port = htons(smt_settings.ctrl_listen_port);
     addr.sin_addr.s_addr = 0;
-    addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_family = AF_INET;
+    if(!strcmp(smt_settings.ctrl_listen_host,"*") || strlen(smt_settings.ctrl_listen_host) == 0)
+    {
+        addr.sin_addr.s_addr = INADDR_ANY;
+    }
+    else
+    {
+        addr.sin_addr.s_addr = inet_addr(smt_settings.ctrl_listen_host);
+    }
 
     if(bind(server_socket, (struct sockaddr *)&addr,sizeof(struct sockaddr_in) ) == -1)
     {
          if( errno == EADDRINUSE )
          {
             // handle port already open case
-            toLog(0,"Error: Can't bind tcp port %d: already in use!\n",smt_settings.tcpport);
+            toLog(0,"Error: Can't bind tcp port %d: already in use!\n",smt_settings.ctrl_listen_port);
             beforeExit();
             exit(1);
          }
@@ -352,7 +407,7 @@ void * communication_thread_fnc(void *arg)
          exit(1);
     }
 
-    toLog(1,"Successfully bound to port %d\n", smt_settings.tcpport);
+    toLog(1,"Successfully bound to port %d\n", smt_settings.ctrl_listen_port);
 
     listen(server_socket,8);
 
@@ -367,6 +422,32 @@ void * communication_thread_fnc(void *arg)
         comm(trim(in),out,TCP_OUTPUT_BUFFER_SIZE);
         send(client_socket, out, strlen(out), 0);
         close(client_socket);
+    }
+    return NULL;
+}
+
+void * heaterswitcher_thread_fnc(void *arg)
+{
+    int ract = THERM_REQACT_NONE;
+    toLog(2,"Heater swticher thread: start...\n");
+    while(1)
+    {
+        if((ract = is_req_heater_action()) != THERM_REQACT_NONE)
+        {
+            clear_req_heater_action();
+
+            if(ract == THERM_REQACT_SWON)
+            {
+                switch_heater(1);
+            }
+            if(ract == THERM_REQACT_SWOFF)
+            {
+                switch_heater(0);
+            }
+
+            hsw_history_store(ract);
+        }
+        sleep(12);
     }
     return NULL;
 }
@@ -410,7 +491,15 @@ int main(int argi,char **argc)
         }
     }
 
-    thermostat_read_saved_state(smt_settings.statefile);
+    if(thermostat_read_saved_state(smt_settings.statefile,1) == 0)
+    {
+        // Because we can't read state (==0), we don't know the state of heater
+        // In case we left heater on somehow, I switch off to
+        // prevent run constantly.
+        switch_heater(0);
+
+        thermostat_read_saved_state(smt_settings.emergstatefile,0);
+    }
 
     if(smt_settings.loglevel > 1)
     {
@@ -459,13 +548,17 @@ int main(int argi,char **argc)
 
     pthread_t sensor_reader_thread;
     pthread_t communication_thread;
+    pthread_t heaterswitcher_thread;
 
     pthread_create(&sensor_reader_thread, NULL, sensor_reader_thread_fnc, NULL);
     sleep(2);
     pthread_create(&communication_thread, NULL, communication_thread_fnc, NULL);
+    sleep(2);
+    pthread_create(&heaterswitcher_thread, NULL, heaterswitcher_thread_fnc, NULL);
 
     pthread_join(sensor_reader_thread, NULL);
     pthread_join(communication_thread, NULL);
+    pthread_join(heaterswitcher_thread,NULL);
     return(0);
 }
 
@@ -506,6 +599,8 @@ int send_sse_message(const char *message)
 
 int switch_heater(int state)
 {
+    toLog(2,"==>> Switch heater: %s\n",state ? "on" : "off");
+
     if(!strcmp(smt_settings.heater_switch_mode,"gpio"))
     {
         toLog(2,"Set gpio(%d) %s\n",smt_settings.heater_switch_gpio,state ? "HIGH" : "LOW");

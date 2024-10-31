@@ -234,6 +234,7 @@ void comm(char *input,char *output,int output_max_size)
         snprintf(output+ol,output_max_size-ol,"]}");
         return;
     }
+
     if(!strcmp(cmd,"qhis") && tc == 4)
     {
         char *sensorname = get_value_for_name("sn",pairs);
@@ -242,6 +243,12 @@ void comm(char *input,char *output,int output_max_size)
         int offset = atoi(offsetstr);
         int length = atoi(lengthstr);
         get_history_data(output,output_max_size,sensorname,offset,length);
+        return;
+    }
+
+    if(!strcmp(cmd,"qhshis") && tc == 1)
+    {
+        get_hsw_history_data(output,output_max_size);
         return;
     }
 
