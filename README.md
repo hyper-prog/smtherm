@@ -20,6 +20,32 @@ Require wiringPi and CURL libraries
     $make
     #make install
 
+Run as systemd daemon
+---------------------
+
+Create systemd start file /lib/systemd/system/smtherm.service
+
+    [Unit]
+    Description=SMTherm thermostat daemon
+    After=network.target
+
+    [Service]
+    Type=forking
+    ExecStart=/usr/local/bin/smtherm /etc/smtherm.conf
+    Restart=always
+    User=root
+    Group=root
+
+    [Install]
+    WantedBy=multi-user.target
+
+After the file created, edit a sample config file and place into /etc/smtherm.conf
+Eenable and start the service
+
+    systemctl daemon-reload
+    systemctl enable smtherm.service
+    systemctl start smtherm.service
+
 
 Author
 ------
