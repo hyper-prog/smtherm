@@ -140,6 +140,34 @@ Main commands, and samples
       "lastread": 13,
       "okread": 9651,
       "crcerror": 3656,
-      "insense": 246
+      "insense": 246,
+      "c2okread": 23,
+      "c2crcerror": 2,
+      "c2insense": 0
+    }
+
+
+**QCT - Query compile time**
+
+    cmd:qct;
+
+  Sample answer
+
+    echo "cmd:qct;" | netcat 127.0.0.1 5017 | jq
+    {
+      "compiledate": "Nov 11 2024",
+      "compiletime": "20:28:42"
+    }
+
+
+**RCT - Reset sersors secondary counters (statistics data counter)**
+
+    cmd:rct;
+
+  Sample answer
+
+    echo "cmd:rct;" | netcat 127.0.0.1 5017 | jq
+    {
+      "reset": "ok"
     }
 

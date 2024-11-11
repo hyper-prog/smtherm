@@ -119,11 +119,15 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin)
 
     pinMode(sd->wpi_pin,INPUT);
 
-    sd->last_lltemp    = 0.0;
-    sd->last_read_time = 0;
-    sd->okread         = 0;
-    sd->checksumerror  = 0;
-    sd->falsedataerror = 0;
+    sd->last_lltemp      = 0.0;
+    sd->last_read_time   = 0;
+    sd->okread           = 0;
+    sd->c2okread         = 0;
+    sd->checksumerror    = 0;
+    sd->c2checksumerror  = 0;
+    sd->falsedataerror   = 0;
+    sd->c2falsedataerror = 0;
+
     return 1;
 }
 
@@ -163,6 +167,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
                         //Full ok values
                         //fprintf(stderr,"*** Full Ok read(pin:%d): temp: %.1f\n",sd->wpi_pin,rv.temp);
                         sd->okread++;
+                        sd->c2okread++;
                         sd->last_lltemp    = rv.temp;
                         sd->last_read_time = now;
                         return rv;
@@ -175,6 +180,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
                         sd->last_lltemp    = rv.temp;
                         sd->last_read_time = now;
                         sd->falsedataerror++;
+                        sd->c2falsedataerror++;
                     }
                 }
                 else
@@ -183,6 +189,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
                     //fprintf(stderr,"*** Too much time diff to check (pin:%d): temp: %.1f\n",sd->wpi_pin,rv.temp);
                     rv.valid = 0;
                     sd->okread++;
+                    sd->c2okread++;
                     sd->last_lltemp    = rv.temp;
                     sd->last_read_time = now;
                 }
@@ -192,6 +199,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
                 //Cannot apply sense check because this is the first read, jump next read
                 //fprintf(stderr,"*** First (OK) read(pin:%d): temp: %.1f\n",sd->wpi_pin,rv.temp);
                 sd->okread++;
+                sd->c2okread++;
                 sd->last_lltemp    = rv.temp;
                 sd->last_read_time = now;
             }
@@ -200,6 +208,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
         {
             //fprintf(stderr,"*** Checksum error(pin:%d)\n",sd->wpi_pin);
             sd->checksumerror++;
+            sd->c2checksumerror++;
         }
 
         delay(sd->ar_delay);
@@ -285,6 +294,15 @@ struct ReadValues dht22_sensor_single_read(struct Dht22SensorDevice* sd)
     rv = dht22_sensor_single_read_in(sd);
     pthread_spin_unlock(&sensor_lock);
     return rv;
+}
+
+void dht22_sensor_reset_counters(struct Dht22SensorDevice* sd)
+{
+    pthread_spin_lock(&sensor_lock);
+    sd->c2okread         = 0;
+    sd->c2checksumerror  = 0;
+    sd->c2falsedataerror = 0;
+    pthread_spin_unlock(&sensor_lock);
 }
 
 //End code.

@@ -237,6 +237,19 @@ void comm(char *input,char *output,int output_max_size)
         return;
     }
 
+    if(!strcmp(cmd,"qct"))
+    {
+        snprintf(output,output_max_size,"{\"compiledate\":\"%s\", \"compiletime\":\"%s\"}",__DATE__,__TIME__);
+        return;
+    }
+
+    if(!strcmp(cmd,"rct"))
+    {
+        reset_sensor_counters();
+        snprintf(output,output_max_size,"{\"reset\":\"ok\"}");
+        return;
+    }
+
     if(!strcmp(cmd,"qhis") && tc == 4)
     {
         char *sensorname = get_value_for_name("sn",pairs);

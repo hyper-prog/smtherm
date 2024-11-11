@@ -22,6 +22,7 @@ int rnd_sensor_init(struct RndSensorDevice* sd)
     sd->last_hum       = 50.0 + (rand()%100 - 50)/10;
     sd->last_read_time = 0;
     sd->okread         = 0;
+    sd->c2okread         = 0;
     return 1;
 }
 
@@ -34,11 +35,18 @@ struct ReadValues rnd_sensor_read(struct RndSensorDevice* sd)
 
     sd->last_read_time = time(NULL);
     sd->okread++;
+    sd->c2okread++;
 
     rv.temp = sd->last_temp;
     rv.hum  = sd->last_hum;
     rv.valid = 1;
     return rv;
 }
+
+void rnd_sensor_reset_counters(struct RndSensorDevice* sd)
+{
+    sd->c2okread = 0;
+}
+
 
 //End code.

@@ -127,6 +127,27 @@ struct TempHum get_sensor_value(int index)
     return th;
 }
 
+void reset_sensor_counters(void)
+{
+    int i;
+    for(i = 1 ; i < MAX_SENSOR_COUNT ; ++i)
+    {
+        if(smt_sensors[i].active)
+        {
+            if(smt_sensors[i].type == SENSOR_TYPE_DHT22 && smt_sensors[i].lowlevel_data != NULL)
+            {
+                struct Dht22SensorDevice *sd = (struct Dht22SensorDevice *)smt_sensors[i].lowlevel_data;
+                dht22_sensor_reset_counters(sd);
+            }
+            if(smt_sensors[i].type == SENSOR_TYPE_RND && smt_sensors[i].lowlevel_data != NULL)
+            {
+                struct RndSensorDevice *sd = (struct RndSensorDevice *)smt_sensors[i].lowlevel_data;
+                rnd_sensor_reset_counters(sd);
+            }
+        }
+    }
+}
+
 int get_sensor_statistics(char *buffer,int buffer_length,int index)
 {
     if(!is_sensor_active(index) || smt_sensors[index].lowlevel_data == NULL)
@@ -140,7 +161,8 @@ int get_sensor_statistics(char *buffer,int buffer_length,int index)
         struct Dht22SensorDevice *sd = (struct Dht22SensorDevice *)smt_sensors[index].lowlevel_data;
         time_t now = time(NULL);
 
-        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,\"okread\": %lu,\"crcerror\": %lu,\"insense\": %lu}",
+        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,"
+                                      "\"okread\": %lu,\"crcerror\": %lu,\"insense\": %lu,\"c2okread\": %lu,\"c2crcerror\": %lu,\"c2insense\": %lu}",
                     smt_sensors[index].name,
                     smt_sensors[index].temp,
                     smt_sensors[index].last_read_success ? "yes" : "no",
@@ -148,20 +170,26 @@ int get_sensor_statistics(char *buffer,int buffer_length,int index)
                     now - sd->last_read_time,
                     sd->okread,
                     sd->checksumerror,
-                    sd->falsedataerror);
+                    sd->falsedataerror,
+                    sd->c2okread,
+                    sd->c2checksumerror,
+                    sd->c2falsedataerror
+                );
     }
     if(smt_sensors[index].type == SENSOR_TYPE_RND && smt_sensors[index].lowlevel_data != NULL)
     {
         struct RndSensorDevice *sd = (struct RndSensorDevice *)smt_sensors[index].lowlevel_data;
         time_t now = time(NULL);
 
-        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,\"okread\": %lu,\"crcerror\": 0,\"insense\": 0}",
+        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,"
+                                      "\"okread\": %lu,\"crcerror\": 0,\"insense\": 0,\"c2okread\": %lu,\"c2crcerror\": 0,\"c2insense\": 0}",
                     smt_sensors[index].name,
                     smt_sensors[index].temp,
                     "yes",
                     smt_sensors[index].hum,
                     now - sd->last_read_time,
-                    sd->okread);
+                    sd->okread,
+                    sd->c2okread);
     }
     return 0;
 }

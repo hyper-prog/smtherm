@@ -15,10 +15,12 @@ struct RndSensorDevice
     float last_hum;
     unsigned long int last_read_time;
     unsigned long int okread;
+    unsigned long int c2okread;
 };
 
 
 int               rnd_sensor_init(struct RndSensorDevice* sd);
 struct ReadValues rnd_sensor_read(struct RndSensorDevice* sd);
+void              rnd_sensor_reset_counters(struct RndSensorDevice* sd);
 
 #endif // DRND_H

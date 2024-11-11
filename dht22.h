@@ -23,8 +23,11 @@ struct Dht22SensorDevice
     float last_lltemp;
     unsigned long int last_read_time;
     unsigned long int okread;
+    unsigned long int c2okread;
     unsigned long int checksumerror;
+    unsigned long int c2checksumerror;
     unsigned long int falsedataerror;
+    unsigned long int c2falsedataerror;
 };
 
 void              init_sensors(void);
@@ -37,5 +40,6 @@ void              dht22_sensor_set_autoretry(struct Dht22SensorDevice* sd,int ma
 void              dht22_sensor_set_autoretry_delay(struct Dht22SensorDevice* sd,int ar_delay);
 void              dht22_sensor_set_fahrenheit(struct Dht22SensorDevice* sd);
 struct ReadValues dht22_sensor_single_read(struct Dht22SensorDevice* sd);
+void              dht22_sensor_reset_counters(struct Dht22SensorDevice* sd);
 
 #endif // TDHT22_H

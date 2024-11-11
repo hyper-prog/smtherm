@@ -103,5 +103,6 @@ int   get_sensor_statistics(char *buffer,int buffer_length,int index);
 int   send_sse_message(const char *message);
 
 int   switch_heater(int state);
+void  reset_sensor_counters(void);
 
 #endif
