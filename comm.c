@@ -116,6 +116,8 @@ int is_valid_input(char *input,struct ValueNamePairs *p) //returns the counts of
             else if(input[i] == ';')
             {
                 state = 1;
+                if(tc + 1 >= MAX_VALUE_NAME_PAIRS)
+                    return tc;
                 ++tc;
                 ci = 0;
             }

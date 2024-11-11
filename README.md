@@ -9,7 +9,7 @@ and make complex decisions about starting or stopping the heating.
 The program communicates via a TCP interface and, in addition to controlling the heating,
 stores the temperature data of the last 3 days in a ring buffer.
 
-The SMTherm only have TCP interface, the GlowDash: https://github.com/hyper-prog/glowdash can controls it. 
+The SMTherm only have TCP interface, the GlowDash: https://github.com/hyper-prog/glowdash can controls it.
 
 ![SMTherm architecture](https://raw.githubusercontent.com/hyper-prog/smtherm/master/images/smthermarch.png)
 
