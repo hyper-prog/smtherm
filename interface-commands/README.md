@@ -160,7 +160,7 @@ Main commands, and samples
     }
 
 
-**RCT - Reset sersors secondary counters (statistics data counter)**
+**RCT - Reset sensors secondary counters (statistics data counter)**
 
     cmd:rct;
 
