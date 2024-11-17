@@ -82,20 +82,6 @@ static int durn(struct timespec t1, struct timespec t2)
     return (((t2.tv_sec-t1.tv_sec)*1000000) + ((t2.tv_nsec-t1.tv_nsec)/1000)); // elapsed microsecs
 }
 
-void dht22_startpuls(int wpi_pin)
-{
-    // Signal Sensor we're ready to read by pulling pin UP for 10 mS.
-    // pulling pin down for 18 mS and then back up for 40 µS.
-    pinMode(wpi_pin, OUTPUT);
-    digitalWrite(wpi_pin, HIGH);
-    delay(10);
-    digitalWrite(wpi_pin, LOW);
-    delay(18);
-    digitalWrite(wpi_pin, HIGH);
-    delayMicroseconds(40);
-    pinMode(wpi_pin, INPUT);
-}
-
 int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin)
 {
     int i;
@@ -217,6 +203,28 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
     return rv;
 }
 
+void dht22_startpuls(int wpi_pin)
+{
+    // Signal Sensor we're ready to read by pulling pin UP for 10 mS.
+    // pulling pin down for 18 mS and then back up for 40 µS.
+    pinMode(wpi_pin, OUTPUT);
+    digitalWrite(wpi_pin, HIGH);
+    delay(10);
+    digitalWrite(wpi_pin, LOW);
+    delay(18);
+    digitalWrite(wpi_pin, HIGH);
+    delayMicroseconds(40);
+    pinMode(wpi_pin, INPUT);
+}
+
+void dht22_end(int wpi_pin)
+{
+    // Accprding to the data sheet, the host have to pull up
+    // the pin to sign data bus is free
+    pinMode(wpi_pin, OUTPUT);
+    digitalWrite(wpi_pin, HIGH);
+}
+
 struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 {
     struct ReadValues rv;
@@ -260,6 +268,8 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
             bit_cnt++;
         }
     }
+
+    dht22_end(sd->wpi_pin);
 
     // Read 40 bits. (Five elements of 8 bits each)  Last element is a checksum.
     if((bit_cnt >= 40) && (sd->hwdata[4] == ((sd->hwdata[0] + sd->hwdata[1] + sd->hwdata[2] + sd->hwdata[3]) & 0xFF)) )
