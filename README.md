@@ -3,11 +3,11 @@
 SMTherm - Smart Manageable Thermostat daemon
 ============================================
 
-SMTherm is a thermostat daemon written in C that monitors the ambient temperature using DHT22 sensors.
-It designed to run on RaspberryPi and can even take into account the data of several thermometers
+SMTherm is a [thermostat](https://en.wikipedia.org/wiki/Thermostat) [daemon](https://en.wikipedia.org/wiki/Daemon_(computing)) written in C that monitors the ambient temperature using DHT22 sensors.
+It designed to run on [Raspberry Pi](https://en.wikipedia.org/wiki/Raspberry_Pi) and can even take into account the data of several thermometers
 and make complex decisions about starting or stopping the heating.
 The program communicates via a TCP interface and, in addition to controlling the heating,
-stores the temperature data of the last 3 days in a ring buffer.
+stores the temperature data of the last 3 days in a [ring buffer](https://en.wikipedia.org/wiki/Circular_buffer).
 
 The SMTherm only have TCP interface, the GlowDash: https://github.com/hyper-prog/glowdash can controls it.
 
