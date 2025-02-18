@@ -276,10 +276,10 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
     {
         rv.valid = 1;
         rv.hum   = (float)((sd->hwdata[0] << 8) + sd->hwdata[1]) / 10.0;
-        rv.temp  = (float)((sd->hwdata[2] << 8) + sd->hwdata[3]) / 10.0;
+        rv.temp  = (float)(((sd->hwdata[2] & 0x7F) << 8) + sd->hwdata[3]) / 10.0;
         if(sd->hwdata[2] & 0x80) // Negative Sign Bit on.
         {
-            rv.temp  = (float) -((((sd->hwdata[2] & 0x7F) << 8) + sd->hwdata[3]) / 10.0);
+            rv.temp  *= -1.0;
         }
         if(sd->fahrenheit)
         {
