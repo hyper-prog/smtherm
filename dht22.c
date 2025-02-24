@@ -205,25 +205,25 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
 
 void dht22_startpuls(int wpi_pin)
 {
-    // Signal Sensor we're ready to read by pulling pin UP for 10 mS.
-    // pulling pin down for 18 mS and then back up for 40 µS.
     pinMode(wpi_pin, OUTPUT);
     digitalWrite(wpi_pin, HIGH);
-    delay(10);
+    delayMicroseconds(5);
     digitalWrite(wpi_pin, LOW);
-    delay(18);
+    delayMicroseconds(1000);
     digitalWrite(wpi_pin, HIGH);
-    delayMicroseconds(40);
+    delayMicroseconds(10);
     pinMode(wpi_pin, INPUT);
+    delayMicroseconds(20);
 }
 
 void dht22_end(int wpi_pin)
 {
-    // Accprding to the data sheet, the host have to pull up
-    // the pin to sign data bus is free
     pinMode(wpi_pin, OUTPUT);
     digitalWrite(wpi_pin, HIGH);
+    delayMicroseconds(200);
 }
+
+unsigned char beats[48];
 
 struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 {
@@ -234,44 +234,47 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
     rv.hum   = 0.0;
 
     struct timespec st, cur;
-    int uSec      = 0;
     int toggles   = 0;
     int bit_cnt   = 0;
+    int lrs       = HIGH;
     int lastState = HIGH;
+    unsigned int waitForChange = 0;
 
     sd->hwdata[0] = sd->hwdata[1] = sd->hwdata[2] = sd->hwdata[3] = sd->hwdata[4] = 0;
 
+    bit_cnt = 0;
+
+    // Collect data from sensor
     dht22_startpuls(sd->wpi_pin);
-
-    // Read data from sensor.
-    for(toggles=0; (toggles < MAX_TIMINGS) && (uSec < 255); toggles++)
+    clock_gettime(CLOCK_REALTIME, &cur);
+    for(toggles = 0 ; (toggles < MAX_TIMINGS) && (waitForChange < 250) ; ++toggles)
     {
-        clock_gettime(CLOCK_REALTIME, &st);
-        while((digitalRead(sd->wpi_pin)==lastState) && (uSec < 255) )
+        st = cur;
+        for(waitForChange = 0; ((lrs = digitalRead(sd->wpi_pin)) == lastState) && (waitForChange < 255) ; ++waitForChange)
         {
-            clock_gettime(CLOCK_REALTIME, &cur);
-            delayMicroseconds(2);
-            uSec=durn(st,cur);
+            delayMicroseconds(1);
         }
+        clock_gettime(CLOCK_REALTIME, &cur);
+        lastState = lrs;
 
-        lastState = digitalRead(sd->wpi_pin);
-
-        // First 2 state changes are sensor signaling ready to send, ignore them.
-        // Each bit is preceeded by a state change to mark its beginning, ignore it too.
-        if( (toggles > 2) && (toggles % 2 == 0))
+        if((toggles > 2) && (toggles % 2 == 0))
         {
-            // Each array element has 8 bits.  Shift Left 1 bit.
-            sd->hwdata[ bit_cnt / 8 ] <<= 1;
-            // A State Change > 35 µS is a '1'.
-            if(uSec>35)
-                sd->hwdata[ bit_cnt/8 ] |= 0x00000001;
-            bit_cnt++;
+            beats[bit_cnt] = durn(st,cur);
+            ++bit_cnt;
         }
     }
-
     dht22_end(sd->wpi_pin);
 
-    // Read 40 bits. (Five elements of 8 bits each)  Last element is a checksum.
+    //Set bits according to the collected times
+    bit_cnt = 0;
+    for(bit_cnt = 0 ; bit_cnt < 40 ; bit_cnt++)
+    {
+        sd->hwdata[ bit_cnt / 8 ] <<= 1;
+        if(beats[bit_cnt] > 48)
+            sd->hwdata[ bit_cnt/8 ] |= 0x00000001;
+    }
+
+    // Interpret 40 bits. (Five elements of 8 bits each)  Last element is a checksum.
     if((bit_cnt >= 40) && (sd->hwdata[4] == ((sd->hwdata[0] + sd->hwdata[1] + sd->hwdata[2] + sd->hwdata[3]) & 0xFF)) )
     {
         rv.valid = 1;

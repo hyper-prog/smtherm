@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
+#include <sched.h>
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
@@ -480,6 +481,17 @@ void * heaterswitcher_thread_fnc(void *arg)
     return NULL;
 }
 
+void set_high_priority()
+{
+    struct sched_param param;
+    param.sched_priority = 99;
+    if (sched_setscheduler(0, SCHED_FIFO, &param) == -1) {
+        perror("sched_setscheduler");
+        exit(EXIT_FAILURE);
+    }
+    toLog(4,"High priority enabled.\n");
+}
+
 int main(int argi,char **argc)
 {
     if(argi <= 1)
@@ -489,6 +501,7 @@ int main(int argi,char **argc)
     }
 
     zero_conf();
+    set_high_priority();
     init_thermostat();
 
     int p;
