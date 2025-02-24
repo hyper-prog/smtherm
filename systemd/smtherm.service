@@ -1,0 +1,19 @@
+[Unit]
+Description=SMTherm daemon
+After=network.target
+
+[Service]
+Type=forking
+#PIDFile=/var/run/smtherm.pid
+ExecStart=/usr/local/bin/smtherm /etc/smtherm.conf
+Restart=always
+User=root
+Group=root
+
+#Set high priority
+Nice=-20
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=99
+
+[Install]
+WantedBy=multi-user.target
