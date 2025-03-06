@@ -12,7 +12,7 @@
 #define NAME "smtherm"
 #define LONGNAME "Simple managed thermostat daemon"
 
-#define VERSION "1.10"
+#define VERSION "1.12"
 
 #define SENSOR_TYPE_UNKNOWN    0
 #define SENSOR_TYPE_DHT22      1

@@ -2,9 +2,9 @@
 # Author: Peter Deak (hyper80@gmail.com)
 # License: GPL
 
-CFLAGS= -Wall -g
-L_CL_FLAGS= -Wall -g
-L_SW_FLAGS= -Wall -g -lm -lwiringPi -lcurl
+CFLAGS= -Wall -O3
+L_CL_FLAGS= -Wall -O3
+L_SW_FLAGS= -Wall -O3 -lm -lwiringPi -lcurl
 COMPILER=gcc
 
 all: smtherm

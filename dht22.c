@@ -209,7 +209,7 @@ void dht22_startpuls(int wpi_pin)
     digitalWrite(wpi_pin, HIGH);
     delayMicroseconds(5);
     digitalWrite(wpi_pin, LOW);
-    delayMicroseconds(1000);
+    delayMicroseconds(1100);
     digitalWrite(wpi_pin, HIGH);
     delayMicroseconds(10);
     pinMode(wpi_pin, INPUT);
@@ -220,10 +220,7 @@ void dht22_end(int wpi_pin)
 {
     pinMode(wpi_pin, OUTPUT);
     digitalWrite(wpi_pin, HIGH);
-    delayMicroseconds(200);
 }
-
-unsigned char beats[48];
 
 struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 {
@@ -242,8 +239,6 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 
     sd->hwdata[0] = sd->hwdata[1] = sd->hwdata[2] = sd->hwdata[3] = sd->hwdata[4] = 0;
 
-    bit_cnt = 0;
-
     // Collect data from sensor
     dht22_startpuls(sd->wpi_pin);
     clock_gettime(CLOCK_REALTIME, &cur);
@@ -259,20 +254,13 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 
         if((toggles > 2) && (toggles % 2 == 0))
         {
-            beats[bit_cnt] = durn(st,cur);
+            sd->hwdata[ bit_cnt / 8 ] <<= 1;
+            if(durn(st,cur) > 48)
+                sd->hwdata[ bit_cnt/8 ] |= 0x00000001;
             ++bit_cnt;
         }
     }
     dht22_end(sd->wpi_pin);
-
-    //Set bits according to the collected times
-    bit_cnt = 0;
-    for(bit_cnt = 0 ; bit_cnt < 40 ; bit_cnt++)
-    {
-        sd->hwdata[ bit_cnt / 8 ] <<= 1;
-        if(beats[bit_cnt] > 48)
-            sd->hwdata[ bit_cnt/8 ] |= 0x00000001;
-    }
 
     // Interpret 40 bits. (Five elements of 8 bits each)  Last element is a checksum.
     if((bit_cnt >= 40) && (sd->hwdata[4] == ((sd->hwdata[0] + sd->hwdata[1] + sd->hwdata[2] + sd->hwdata[3]) & 0xFF)) )
