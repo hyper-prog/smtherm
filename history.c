@@ -45,6 +45,11 @@ pthread_mutex_t hlock;
 
 int init_history_database(void)
 {
+    if(pthread_mutex_init(&hlock, NULL) != 0)
+    {
+        toLog(0,"History mutex init has failed!\n");
+    }
+
     toLog(2,"Init history database...\n");
     pthread_mutex_lock(&hlock);
     wpos = 0;
@@ -258,5 +263,6 @@ int free_history_database(void)
                 free(history[history_sensor_count].humarray);
         }
     pthread_mutex_unlock(&hlock);
+    pthread_mutex_destroy(&hlock);
     return 0;
 }

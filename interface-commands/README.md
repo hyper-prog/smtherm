@@ -171,3 +171,14 @@ Main commands, and samples
       "reset": "ok"
     }
 
+**SLL - Set log level**
+
+    cmd:sll;loglevel:<LEVEL>;
+
+  Sample answer
+
+    echo "cmd:sll;loglevel:4;" | netcat 127.0.0.1 5017 | jq
+    {
+      "set": "ok"
+    }
+

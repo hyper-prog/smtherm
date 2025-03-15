@@ -187,7 +187,7 @@ void read_config_item(char *item_line,struct SMTherm_Settings *smtc,struct Senso
     }
 
     int ss;
-    for(ss = 1 ; ss <= 9 ; ++ss)
+    for(ss = 1 ; ss <= 9 && ss <= smtc->sensor_count; ++ss)
     {
         snprintf(confs,128,"Sensor%dName=",ss);
         if(strncmp(confs,item_line,strlen(confs)) == 0)
@@ -204,6 +204,17 @@ void read_config_item(char *item_line,struct SMTherm_Settings *smtc,struct Senso
                 seda[ss].type = SENSOR_TYPE_DHT22;
             if(strcmp(ltrim(item_line + strlen(confs)),"rnd") == 0)
                 seda[ss].type = SENSOR_TYPE_RND;
+            return;
+        }
+
+        snprintf(confs,128,"Sensor%dReader=",ss);
+        if(strncmp(confs,item_line,strlen(confs)) == 0)
+        {
+            seda[ss].readercode = SENSOR_READERCODE_DEFAULT;
+            if(strcmp(ltrim(item_line + strlen(confs)),"wiringPi_internal") == 0)
+                seda[ss].readercode = SENSOR_READERCODE_DHT22_INTERNAL;
+            if(strcmp(ltrim(item_line + strlen(confs)),"dht22m_kernel") == 0)
+                seda[ss].readercode = SENSOR_READERCODE_DHT22_MKERNEL;
             return;
         }
 

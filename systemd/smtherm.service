@@ -10,10 +10,10 @@ Restart=always
 User=root
 Group=root
 
-#Set high priority
-Nice=-20
-CPUSchedulingPolicy=fifo
-CPUSchedulingPriority=99
+# #Set high priority
+# Nice=-20
+# CPUSchedulingPolicy=fifo
+# CPUSchedulingPriority=99
 
 [Install]
 WantedBy=multi-user.target

@@ -16,6 +16,7 @@ char *trim(char *s);
 
 size_t h_strlcpy(char *dest, const char *src, size_t size);
 
+void init_log_mutex(void);
 void toLog(int level, const char * format, ...);
 
 #endif

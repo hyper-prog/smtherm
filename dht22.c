@@ -49,15 +49,26 @@ int rpigpio_to_wiringpi_pin[][2] = {
     {-1,-1}
 };
 
-pthread_spinlock_t sensor_lock;
+int  dht22m_device_count = 0;
+char dht22m_gpiolist_string[64];
+int  dht22m_gpiolist_string_pan;
+
+pthread_mutex_t sensor_lock;
 
 void init_sensors(void)
 {
-    if(pthread_spin_init(&sensor_lock, PTHREAD_PROCESS_PRIVATE) != 0)
+    if(pthread_mutex_init(&sensor_lock, NULL) != 0)
     {
-        fprintf(stderr,"Spinlock init has failed!\n");
+        toLog(0,"Sensor mutex init has failed!\n");
     }
 
+    dht22m_device_count = 0;
+    h_strlcpy(dht22m_gpiolist_string,"",64);
+    dht22m_gpiolist_string_pan = 0;
+}
+
+void init_wiringPi(void)
+{
     int init_try = 0;
     int init_ok = ( wiringPiSetup() >= 0 );
     while(!init_ok)
@@ -72,9 +83,24 @@ void init_sensors(void)
     }
 }
 
+int init_configure_dht22m(void)
+{
+    toLog(3,"DHT22M config, send \"%s\" to \"%sd\" file...\n",dht22m_gpiolist_string,DHT22M_GPIO_CONF_FILE);
+    FILE *sysfile;
+    if((sysfile = fopen(DHT22M_GPIO_CONF_FILE,"w")) == NULL)
+    {
+        toLog(1,"Cannot write \"%sd\", is dht22m modul loaded?\n",DHT22M_GPIO_CONF_FILE);
+        return 1;
+    }
+    fprintf(sysfile,"%s",dht22m_gpiolist_string);
+    fclose(sysfile);
+    delay(2000);
+    return 0;
+}
+
 void free_sensors(void)
 {
-    pthread_spin_destroy(&sensor_lock);
+    pthread_mutex_destroy(&sensor_lock);
 }
 
 static int durn(struct timespec t1, struct timespec t2)
@@ -82,10 +108,15 @@ static int durn(struct timespec t1, struct timespec t2)
     return (((t2.tv_sec-t1.tv_sec)*1000000) + ((t2.tv_nsec-t1.tv_nsec)/1000)); // elapsed microsecs
 }
 
-int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin)
+int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin,int reader_code)
 {
     int i;
 
+    sd->reader_code = reader_code;
+    if(reader_code == SENSOR_READERCODE_DEFAULT)
+        sd->reader_code = SENSOR_READERCODE_DHT22_INTERNAL;
+
+    sd->rpi_gpio_pin = rpi_gpio_pin;
     sd->wpi_pin = -1;
     for(i = 0 ; ; ++i)
     {
@@ -101,9 +132,30 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin)
 
     sd->fahrenheit = 0;
     sd->max_try = 12;
-    sd->ar_delay = 1000;
+    sd->ar_delay = 2200;
 
-    pinMode(sd->wpi_pin,INPUT);
+    if(sd->reader_code == SENSOR_READERCODE_DHT22_INTERNAL)
+    {
+        pinMode(sd->wpi_pin,INPUT);
+        h_strlcpy(sd->devicefile,"",16);
+    }
+
+    if(sd->reader_code == SENSOR_READERCODE_DHT22_MKERNEL)
+    {
+        snprintf(sd->devicefile,16,"/dev/dht22m%d",dht22m_device_count);
+        if(dht22m_device_count > 0)
+        {
+            dht22m_gpiolist_string_pan +=
+                    snprintf(dht22m_gpiolist_string + dht22m_gpiolist_string_pan,
+                             64 - dht22m_gpiolist_string_pan,
+                             " ");
+        }
+        dht22m_gpiolist_string_pan +=
+                snprintf(dht22m_gpiolist_string + dht22m_gpiolist_string_pan,
+                         64 - dht22m_gpiolist_string_pan,
+                         "%d",sd->rpi_gpio_pin);
+        ++dht22m_device_count;
+    }
 
     sd->last_lltemp      = 0.0;
     sd->last_read_time   = 0;
@@ -117,7 +169,7 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin)
     return 1;
 }
 
-void dht22_sensor_set_autoretry(struct Dht22SensorDevice* sd,int max_try)
+void dht22_sensor_set_autoretry_maxtry(struct Dht22SensorDevice* sd,int max_try)
 {
     sd->max_try = max_try;
 }
@@ -290,22 +342,75 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
     return rv;
 }
 
+struct ReadValues dht22m_sensor_single_read(struct Dht22SensorDevice* sd)
+{
+    char buffer[64];
+    char *ptr;
+    struct ReadValues rv;
+
+    rv.valid = 0;
+    rv.temp  = 0.0;
+    rv.hum   = 0.0;
+
+    FILE *devf;
+    if((devf = fopen(sd->devicefile,"r")) == NULL)
+    {
+        toLog(0,"Cannot open %s file!\n",sd->devicefile);
+        return rv;
+    }
+    ptr = fgets(buffer,sizeof(buffer),devf);
+    fclose(devf);
+
+    if(ptr == NULL)
+    {
+        toLog(0,"Cannot read any data from %s file!\n",sd->devicefile);
+        return rv;
+    }
+
+    trim(buffer);
+    toLog(4,"Read \"%s\" from \"%s\"\n",buffer,sd->devicefile);
+
+    /* Possible answers:
+         Ok;TEMPERATURE;HUMIDITY
+         ChecksumError, ReadTooSoon, NotRead, IOError
+     Since I can't collect the types of these errors I only distinct the success
+     and failed reads.    */
+    if(buffer[0] == 'O' && buffer[1] == 'k' && buffer[2] == ';')
+    {
+        if(sscanf(buffer + 3,"%f;%f",&rv.temp,&rv.hum) == 2)
+        {
+            toLog(4,"Success read %.1f C and %.1f%%\n",rv.temp,rv.hum);
+            rv.valid = 1;
+            return rv;
+        }
+    }
+    return rv;
+}
+
 struct ReadValues dht22_sensor_single_read(struct Dht22SensorDevice* sd)
 {
     struct ReadValues rv;
-    pthread_spin_lock(&sensor_lock);
-    rv = dht22_sensor_single_read_in(sd);
-    pthread_spin_unlock(&sensor_lock);
+
+    pthread_mutex_lock(&sensor_lock);
+    if(sd->reader_code == SENSOR_READERCODE_DHT22_INTERNAL)
+    {
+        rv = dht22_sensor_single_read_in(sd);
+    }
+    if(sd->reader_code == SENSOR_READERCODE_DHT22_MKERNEL)
+    {
+        rv = dht22m_sensor_single_read(sd);
+    }
+    pthread_mutex_unlock(&sensor_lock);
     return rv;
 }
 
 void dht22_sensor_reset_counters(struct Dht22SensorDevice* sd)
 {
-    pthread_spin_lock(&sensor_lock);
+    pthread_mutex_lock(&sensor_lock);
     sd->c2okread         = 0;
     sd->c2checksumerror  = 0;
     sd->c2falsedataerror = 0;
-    pthread_spin_unlock(&sensor_lock);
+    pthread_mutex_unlock(&sensor_lock);
 }
 
 //End code.

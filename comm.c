@@ -190,6 +190,25 @@ void comm(char *input,char *output,int output_max_size)
         return;
     }
 
+    if(!strcmp(cmd,"sll"))
+    {
+        char *loglevelstr = get_value_for_name("loglevel",pairs);
+        if(strlen(loglevelstr) == 0)
+        {
+            snprintf(output,output_max_size,"Error\n");
+            return;
+        }
+        int ll;
+        if(sscanf(loglevelstr,"%d",&ll) == 1)
+        {
+            set_loglevel(ll);
+            snprintf(output,output_max_size,"{\"set\":\"ok\"}");
+            return;
+        }
+        snprintf(output,output_max_size,"Error-4");
+        return;
+    }
+
     if(!strcmp(cmd,"stw"))
     {
         char *ttempstr = get_value_for_name("work",pairs);
@@ -239,7 +258,8 @@ void comm(char *input,char *output,int output_max_size)
 
     if(!strcmp(cmd,"qct"))
     {
-        snprintf(output,output_max_size,"{\"compiledate\":\"%s\", \"compiletime\":\"%s\"}",__DATE__,__TIME__);
+        snprintf(output,output_max_size,"{\"version\":\"%s\", \"compiledate\":\"%s\", \"compiletime\":\"%s\"}",
+                 VERSION,__DATE__,__TIME__);
         return;
     }
 

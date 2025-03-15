@@ -61,6 +61,7 @@ void zero_conf(void)
         smt_sensors[i].last_read_success = 0;
         h_strlcpy(smt_sensors[i].name,"-",128);
         smt_sensors[i].type = SENSOR_TYPE_UNKNOWN;
+        smt_sensors[i].readercode = SENSOR_READERCODE_DEFAULT;
         smt_sensors[i].gpio_pin = -1;
         smt_sensors[i].rtime = 0;
         smt_sensors[i].temp = 0.0;
@@ -72,6 +73,12 @@ void zero_conf(void)
 int loglevel(void)
 {
     return smt_settings.loglevel;
+}
+
+void set_loglevel(int l)
+{
+    smt_settings.loglevel = l;
+    toLog(0,"Set loglevel to %d\n",smt_settings.loglevel);
 }
 
 int nodaemon(void)
@@ -272,7 +279,8 @@ void init_sensor_devices(void)
             if(smt_sensors[i].type == SENSOR_TYPE_DHT22)
             {
                 smt_sensors[i].lowlevel_data = (void *)malloc(sizeof(struct Dht22SensorDevice));
-                dht22_sensor_init((struct Dht22SensorDevice *)smt_sensors[i].lowlevel_data,smt_sensors[i].gpio_pin);
+                dht22_sensor_init((struct Dht22SensorDevice *)smt_sensors[i].lowlevel_data,
+                                  smt_sensors[i].gpio_pin,smt_sensors[i].readercode);
                 smt_sensors[i].active = 1;
             }
             if(smt_sensors[i].type == SENSOR_TYPE_RND)
@@ -283,6 +291,29 @@ void init_sensor_devices(void)
             }
         }
     }
+}
+
+int has_dht22m_sensor()
+{
+    int i,has = 0;
+    for(i = 0 ; i < MAX_SENSOR_COUNT ; ++i)
+    {
+        if(strlen(smt_sensors[i].name) > 0 &&
+           strcmp(smt_sensors[i].name,"-") != 0 &&
+           smt_sensors[i].type != SENSOR_TYPE_UNKNOWN &&
+           smt_sensors[i].gpio_pin > -1 )
+        {
+            if(smt_sensors[i].type == SENSOR_TYPE_DHT22)
+            {
+                if(smt_sensors[i].readercode == SENSOR_READERCODE_DHT22_MKERNEL)
+                {
+                    has = 1;
+                    break;
+                }
+            }
+        }
+    }
+    return has;
 }
 
 void read_single_sensor(int index)
@@ -307,7 +338,7 @@ void read_single_sensor(int index)
         {
             if(v.valid)
             {
-                thermostat_ext_lock();
+                thermostat_ext_lock("read_single_sensor-1");
 
                 smt_sensors[index].last_read_success = 1;
 
@@ -319,13 +350,13 @@ void read_single_sensor(int index)
                 smt_sensors[index].temp = v.temp;
                 smt_sensors[index].hum = v.hum;
 
-                thermostat_ext_unlock();
+                thermostat_ext_unlock("read_single_sensor-1");
             }
             else
             {
-                thermostat_ext_lock();
+                thermostat_ext_lock("read_single_sensor-2");
                 smt_sensors[index].last_read_success = 0;
-                thermostat_ext_unlock();
+                thermostat_ext_unlock("read_single_sensor-2");
             }
         }
     }
@@ -364,13 +395,19 @@ int emergency_save_counter = 0;
 void * sensor_reader_thread_fnc(void *arg)
 {
     toLog(1,"Sensor reader thread: init sensors...\n");
+
     init_sensors();
+
     init_sensor_devices();
+    if(has_dht22m_sensor())
+         init_configure_dht22m();
+
     init_history_database();
     toLog(1,"Sensor reader thread: start readings...\n");
     while(1)
     {
         read_all_sensors();
+
         if(smt_settings.loglevel > 2)
         {
             printf("----------------------------\n");
@@ -500,8 +537,9 @@ int main(int argi,char **argc)
         return 0;
     }
 
+    init_log_mutex();
     zero_conf();
-    set_high_priority();
+    //set_high_priority();
     init_thermostat();
 
     int p;
@@ -532,6 +570,8 @@ int main(int argi,char **argc)
         }
     }
 
+    toLog(0,"Start SMTherm...\n");
+
     if(thermostat_read_saved_state(smt_settings.statefile,1) == 0)
     {
         // Because we can't read state (==0), we don't know the state of heater
@@ -560,7 +600,6 @@ int main(int argi,char **argc)
     }
 
     attach_signal_handler();
-
     if(!smt_settings.nodaemon)
     {
         toLog(1,"Started, Entering daemon mode...\n");
@@ -579,7 +618,8 @@ int main(int argi,char **argc)
                 "All messages written to the standard output!\n"
                 "THE HASSES DOES NOT USE THE LOG FILE!\n\n");
     }
-    toLog(0,"Start...\n");
+
+    init_wiringPi();
 
     if(!strcmp(smt_settings.heater_switch_mode,"gpio"))
     {
@@ -672,6 +712,5 @@ int switch_heater(int state)
         return 1;
     }
     return 0;
-
 }
 

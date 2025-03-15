@@ -22,7 +22,7 @@ int rnd_sensor_init(struct RndSensorDevice* sd)
     sd->last_hum       = 50.0 + (rand()%100 - 50)/10;
     sd->last_read_time = 0;
     sd->okread         = 0;
-    sd->c2okread         = 0;
+    sd->c2okread       = 0;
     return 1;
 }
 

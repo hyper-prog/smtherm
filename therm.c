@@ -27,8 +27,9 @@
 #define TMODE_ERROR  0
 #define TMODE_SINGLE 1
 #define TMODE_AVG    2
-#define TMODE_MIN    3
-#define TMODE_MAX    4
+#define TMODE_DAV    3
+#define TMODE_MIN    4
+#define TMODE_MAX    5
 
 struct ThermData therm;
 pthread_mutex_t thermostat_lock;
@@ -50,7 +51,7 @@ void init_thermostat(void)
     therm.emergencysaved_thermostat_on = -1;
     therm.emergencysaved_target_temp = -99;
 
-    if(pthread_mutex_init(&thermostat_lock, NULL) != 0) 
+    if(pthread_mutex_init(&thermostat_lock, NULL) != 0)
     {
         toLog(0,"Mutex init has failed!\n");
     }
@@ -169,7 +170,10 @@ void free_thermostat(const char *statefile)
     pthread_mutex_destroy(&thermostat_lock);
 }
 
-float calc_reference_temp(void)
+/* Calculate reference temperature according to the "DefaultTargetSensor" config value
+ *  Returns the calculated reference temperature or -100.0 if cannot calulate it.
+ */
+float calc_reference_temp(float target)
 {
     int i;
     int mode = TMODE_ERROR;
@@ -186,6 +190,8 @@ float calc_reference_temp(void)
         mode = TMODE_MAX;
     if(!strncmp(therm.target_sensor,"avg:",4))
         mode = TMODE_AVG;
+    if(!strncmp(therm.target_sensor,"dav:",4))
+        mode = TMODE_DAV;
     if(!strncmp(therm.target_sensor,"one:",4))
         mode = TMODE_SINGLE;
 
@@ -229,7 +235,7 @@ float calc_reference_temp(void)
             if(f > svs[i])
                 f = svs[i];
         if(f < 99.0)
-            return  f;
+            return f;
     }
 
     if(mode == TMODE_MAX && sc > 0)
@@ -239,7 +245,7 @@ float calc_reference_temp(void)
             if(f < svs[i])
                 f = svs[i];
         if(f > 0.0)
-            return  f;
+            return f;
     }
 
     if(mode == TMODE_AVG && sc > 0)
@@ -247,14 +253,51 @@ float calc_reference_temp(void)
         float sum = 0.0;
         for(i = 0 ; i < sc ; ++i)
             sum += svs[i];
-        return  floor((sum / sc) * 10) / 10;
+        return floor((sum / sc) * 10) / 10;
+    }
+
+    if(mode == TMODE_DAV && sc > 0)
+    {
+        float sum = 0.0;
+        float count = 0.0;
+        for(i = 0 ; i < sc ; ++i)
+        {
+            float dif = target - svs[i];
+            if(dif < 0.5) {
+                sum += svs[i];
+                count += 1.0;
+            } else if(dif < 1.0) {
+                sum += svs[i] * 1.5;
+                count += 1.5;
+            } else if(dif < 1.5) {
+                sum += svs[i] * 1.75;
+                count += 1.75;
+            } else {
+                sum += svs[i] * 2.0;
+                count += 2.0;
+            }
+        }
+        return floor((sum / count) * 10) / 10;
     }
     return -100.0;
 }
 
 void do_thermostat_in(void)
 {
-    float rt = calc_reference_temp();
+    float rt = calc_reference_temp(therm.target_temp);
+
+    if(rt == -100.0) //cannot calculate reference temp (eg: cannot read sensors)
+    {
+        //If heating is on switch off, to prevent forever heating on sensor error.
+        if(therm.heating_on)
+        {
+             therm.heating_on = 0;
+             therm.req_act = THERM_REQACT_SWOFF;
+             therm.req_wait = 0;
+             therm.req_notify = 1;
+        }
+        return;
+    }
     therm.last_reference_temp = therm.reference_temp;
     therm.reference_temp = rt;
 
@@ -317,12 +360,12 @@ void do_thermostat_in(void)
     }
 }
 
-void thermostat_ext_lock()
+void thermostat_ext_lock(const char *from)
 {
     pthread_mutex_lock(&thermostat_lock);
 }
 
-void thermostat_ext_unlock()
+void thermostat_ext_unlock(const char *from)
 {
     pthread_mutex_unlock(&thermostat_lock);
 }
@@ -396,6 +439,7 @@ void set_thermostat_on(int on)
     pthread_mutex_lock(&thermostat_lock);
     therm.thermostat_on = on;
     pthread_mutex_unlock(&thermostat_lock);
+
     do_thermostat();
     do_sse_notify_if_required();
 }

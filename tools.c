@@ -48,6 +48,14 @@ pthread_mutex_t loglock;
 time_t log_oldrawtime=1;
 char   log_timebuf[80];
 
+void init_log_mutex(void)
+{
+    if(pthread_mutex_init(&loglock, NULL) != 0)
+    {
+        toLog(0,"Log mutex init has failed!\n");
+    }
+}
+
 void toLog(int level, const char * format, ...)
 {
     if(level <= loglevel())

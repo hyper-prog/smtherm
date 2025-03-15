@@ -12,11 +12,15 @@
 #define NAME "smtherm"
 #define LONGNAME "Simple managed thermostat daemon"
 
-#define VERSION "1.12"
+#define VERSION "1.21"
 
 #define SENSOR_TYPE_UNKNOWN    0
 #define SENSOR_TYPE_DHT22      1
 #define SENSOR_TYPE_RND        2
+
+#define SENSOR_READERCODE_DEFAULT         0
+#define SENSOR_READERCODE_DHT22_INTERNAL  1
+#define SENSOR_READERCODE_DHT22_MKERNEL   2
 
 #define MAX_SENSOR_COUNT       9
 #define SENSOR_NAME_MAXLENGTH  32
@@ -29,6 +33,7 @@ struct SensorData
     char   last_read_success;
     char   name[SENSOR_NAME_MAXLENGTH];
     int    type;
+    int    readercode;
     int    gpio_pin;
 
     //current measured data
@@ -84,6 +89,7 @@ struct SMTherm_Settings
 };
 
 int loglevel(void);
+void set_loglevel(int l);
 int nodaemon(void);
 char *logfile(void);
 

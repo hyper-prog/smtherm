@@ -40,10 +40,10 @@ void thermostat_write_state(const char *statefile,int clean_shutdown);
 void thermostat_emergency_write_state(const char *statefile);
 void free_thermostat(const char *statefile);
 
-void thermostat_ext_lock();
-void thermostat_ext_unlock();
+void thermostat_ext_lock(const char *from);
+void thermostat_ext_unlock(const char *from);
 
-float calc_reference_temp(void);
+float calc_reference_temp(float target);
 
 void  do_thermostat(void);
 
