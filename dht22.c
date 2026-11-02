@@ -118,15 +118,18 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin,int reader_c
 
     sd->rpi_gpio_pin = rpi_gpio_pin;
     sd->wpi_pin = -1;
-    for(i = 0 ; ; ++i)
+    if(sd->reader_code == SENSOR_READERCODE_DHT22_INTERNAL)
     {
-        if(rpigpio_to_wiringpi_pin[i][0] == rpi_gpio_pin)
+        for(i = 0 ; ; ++i)
         {
-            sd->wpi_pin = rpigpio_to_wiringpi_pin[i][1];
-            break;
+            if(rpigpio_to_wiringpi_pin[i][0] == rpi_gpio_pin)
+            {
+                sd->wpi_pin = rpigpio_to_wiringpi_pin[i][1];
+                break;
+            }
+            if(rpigpio_to_wiringpi_pin[i][0] == -1)
+                return 0;
         }
-        if(rpigpio_to_wiringpi_pin[i][0] == -1)
-            return 0;
     }
     //printf("WiringPi pin %d from %d\n",sd->wpi_pin,rpi_gpio_pin);
 
