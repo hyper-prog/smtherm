@@ -15,7 +15,9 @@ The SMTherm only have TCP interface, the GlowDash: https://github.com/hyper-prog
 
 Compile / Install
 -----------------
-Require wiringPi and CURL libraries
+Require wiringPi and cURL libraries.
+cURL is usually available through the package manager, 
+while wiringPi can be obtained from: https://github.com/wiringpi/wiringpi
 
     $make
     #make install
