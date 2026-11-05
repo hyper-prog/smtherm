@@ -9,7 +9,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+#include <unistd.h>
+
+#ifndef DISABLE_WIRINGPI
 #include <wiringPi.h>
+#endif
 
 #include "dht22.h"
 #include "smtherm.h"
@@ -69,6 +73,7 @@ void init_sensors(void)
 
 void init_wiringPi(void)
 {
+#ifndef DISABLE_WIRINGPI
     int init_try = 0;
     int init_ok = ( wiringPiSetup() >= 0 );
     while(!init_ok)
@@ -81,6 +86,7 @@ void init_wiringPi(void)
         if(init_try >= 5)
             break;
     }
+#endif
 }
 
 int init_configure_dht22m(void)
@@ -94,7 +100,7 @@ int init_configure_dht22m(void)
     }
     fprintf(sysfile,"%s",dht22m_gpiolist_string);
     fclose(sysfile);
-    delay(2000);
+    usleep(2000000);
     return 0;
 }
 
@@ -103,15 +109,15 @@ void free_sensors(void)
     pthread_mutex_destroy(&sensor_lock);
 }
 
+#ifndef DISABLE_WIRINGPI
 static int durn(struct timespec t1, struct timespec t2)
 {
     return (((t2.tv_sec-t1.tv_sec)*1000000) + ((t2.tv_nsec-t1.tv_nsec)/1000)); // elapsed microsecs
 }
+#endif
 
 int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin,int reader_code)
 {
-    int i;
-
     sd->reader_code = reader_code;
     if(reader_code == SENSOR_READERCODE_DEFAULT)
         sd->reader_code = SENSOR_READERCODE_DHT22_INTERNAL;
@@ -120,6 +126,8 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin,int reader_c
     sd->wpi_pin = -1;
     if(sd->reader_code == SENSOR_READERCODE_DHT22_INTERNAL)
     {
+#ifndef DISABLE_WIRINGPI
+        int i;
         for(i = 0 ; ; ++i)
         {
             if(rpigpio_to_wiringpi_pin[i][0] == rpi_gpio_pin)
@@ -130,6 +138,7 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin,int reader_c
             if(rpigpio_to_wiringpi_pin[i][0] == -1)
                 return 0;
         }
+#endif
     }
     //printf("WiringPi pin %d from %d\n",sd->wpi_pin,rpi_gpio_pin);
 
@@ -139,7 +148,9 @@ int dht22_sensor_init(struct Dht22SensorDevice* sd,int rpi_gpio_pin,int reader_c
 
     if(sd->reader_code == SENSOR_READERCODE_DHT22_INTERNAL)
     {
+#ifndef DISABLE_WIRINGPI
         pinMode(sd->wpi_pin,INPUT);
+#endif
         h_strlcpy(sd->devicefile,"",16);
     }
 
@@ -194,7 +205,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
     rv.valid = 0;
     for(try = 0 ; try < sd->max_try ; ++try)
     {
-        delay(50);
+        usleep(50000);
         rv = dht22_sensor_single_read(sd);
         if(rv.valid)
         {
@@ -252,7 +263,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
             sd->c2checksumerror++;
         }
 
-        delay(sd->ar_delay);
+        usleep(sd->ar_delay * 1000);
     }
     //fprintf(stderr,"*** Giving up(pin:%d)\n",sd->wpi_pin);
     return rv;
@@ -260,6 +271,7 @@ struct ReadValues dht22_sensor_read(struct Dht22SensorDevice* sd)
 
 void dht22_startpuls(int wpi_pin)
 {
+#ifndef DISABLE_WIRINGPI
     pinMode(wpi_pin, OUTPUT);
     digitalWrite(wpi_pin, HIGH);
     delayMicroseconds(5);
@@ -269,12 +281,15 @@ void dht22_startpuls(int wpi_pin)
     delayMicroseconds(10);
     pinMode(wpi_pin, INPUT);
     delayMicroseconds(20);
+#endif
 }
 
 void dht22_end(int wpi_pin)
 {
+#ifndef DISABLE_WIRINGPI
     pinMode(wpi_pin, OUTPUT);
     digitalWrite(wpi_pin, HIGH);
+#endif
 }
 
 struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
@@ -285,6 +300,7 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
     rv.temp  = 0.0;
     rv.hum   = 0.0;
 
+#ifndef DISABLE_WIRINGPI
     struct timespec st, cur;
     int toggles   = 0;
     int bit_cnt   = 0;
@@ -342,6 +358,7 @@ struct ReadValues dht22_sensor_single_read_in(struct Dht22SensorDevice* sd)
 
     if(rv.hum > 100)
         rv.valid = 0;
+#endif
     return rv;
 }
 

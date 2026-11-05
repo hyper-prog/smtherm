@@ -16,8 +16,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <wiringPi.h>
 #include <curl/curl.h>
+
+#ifndef DISABLE_WIRINGPI
+#include <wiringPi.h>
+#endif
 
 #include "tools.h"
 #include "conf.h"
@@ -169,7 +172,7 @@ int get_sensor_statistics(char *buffer,int buffer_length,int index)
         struct Dht22SensorDevice *sd = (struct Dht22SensorDevice *)smt_sensors[index].lowlevel_data;
         time_t now = time(NULL);
 
-        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,"
+        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %llu,"
                                       "\"okread\": %lu,\"crcerror\": %lu,\"insense\": %lu,\"c2okread\": %lu,\"c2crcerror\": %lu,\"c2insense\": %lu}",
                     smt_sensors[index].name,
                     smt_sensors[index].temp,
@@ -189,7 +192,7 @@ int get_sensor_statistics(char *buffer,int buffer_length,int index)
         struct RndSensorDevice *sd = (struct RndSensorDevice *)smt_sensors[index].lowlevel_data;
         time_t now = time(NULL);
 
-        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %lu,"
+        snprintf(buffer,buffer_length,"{\"name\": \"%s\",\"temp\": %.1f,\"lastok\": \"%s\",\"hum\": %.0f,\"lastread\": %llu,"
                                       "\"okread\": %lu,\"crcerror\": 0,\"insense\": 0,\"c2okread\": %lu,\"c2crcerror\": 0,\"c2insense\": 0}",
                     smt_sensors[index].name,
                     smt_sensors[index].temp,
@@ -221,8 +224,8 @@ void beforeExit(void)
 {
     if(server_socket != 0)
     {
-        int true = 1;
-        setsockopt(server_socket,SOL_SOCKET,SO_REUSEADDR,&true,sizeof(int));
+        int trueval = 1;
+        setsockopt(server_socket,SOL_SOCKET,SO_REUSEADDR,&trueval,sizeof(int));
         close(server_socket);
     }
 
@@ -623,8 +626,10 @@ int main(int argi,char **argc)
 
     if(!strcmp(smt_settings.heater_switch_mode,"gpio"))
     {
+#ifndef DISABLE_WIRINGPI
         pinMode(smt_settings.heater_switch_gpio, OUTPUT);
         digitalWrite(smt_settings.heater_switch_gpio, LOW);
+#endif
     }
 
     pthread_t sensor_reader_thread;
@@ -684,8 +689,10 @@ int switch_heater(int state)
 
     if(!strcmp(smt_settings.heater_switch_mode,"gpio"))
     {
+#ifndef DISABLE_WIRINGPI
         toLog(2,"Set gpio(%d) %s\n",smt_settings.heater_switch_gpio,state ? "HIGH" : "LOW");
         digitalWrite(smt_settings.heater_switch_gpio, state ? HIGH : LOW);
+#endif
         return 1;
     }
 

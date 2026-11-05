@@ -20,10 +20,15 @@ Require wiringPi and CURL libraries
     $make
     #make install
 
+_Note: You can disable wiringPi library if you only use kernel driver for read sensors.
+To do this, just run "export DISABLE_WIRINGPI=1" before make._
+
+
 Run as systemd daemon
 ---------------------
 
 Create systemd start file /lib/systemd/system/smtherm.service
+(This file located under systemd directory in source tree)
 
     [Unit]
     Description=SMTherm thermostat daemon

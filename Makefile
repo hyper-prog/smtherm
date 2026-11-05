@@ -2,10 +2,18 @@
 # Author: Peter Deak (hyper80@gmail.com)
 # License: GPL
 
+DISABLE_WIRINGPI ?= 0
+
 CFLAGS= -Wall -O3
 L_CL_FLAGS= -Wall -O3
-L_SW_FLAGS= -Wall -O3 -lm -lwiringPi -lcurl
+L_SW_FLAGS= -Wall -O3 -lm -lcurl
 COMPILER=gcc
+
+ifeq ($(DISABLE_WIRINGPI), 1)
+    CFLAGS += -DDISABLE_WIRINGPI
+else
+    L_SW_FLAGS += -lwiringPi
+endif
 
 all: smtherm
 
