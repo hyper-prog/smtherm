@@ -49,6 +49,21 @@ drnd.o: drnd.c drnd.h
 
 install:
 	install -s -m 0755 smtherm /usr/local/bin/smtherm
+	@echo "Installing systemd service..."
+	install -m 0644 systemd/smtherm.service /lib/systemd/system/smtherm.service
+	@echo "Reloading systemd daemon..."
+	systemctl daemon-reload
+	@echo "Enabling smtherm service..."
+	systemctl enable smtherm.service
+	@echo "Installation completed successfully. You can now start it with: sudo systemctl start smtherm"
 
 uninstall:
-	rm /usr/local/bin/smtherm
+	@echo "Stopping and disabling service..."
+	-systemctl stop smtherm.service
+	-systemctl disable smtherm.service
+	@echo "Removing files..."
+	rm -f /usr/local/bin/smtherm
+	rm -f /lib/systemd/system/smtherm.service
+	@echo "Reloading systemd daemon..."
+	systemctl daemon-reload
+	@echo "Uninstallation completed."
